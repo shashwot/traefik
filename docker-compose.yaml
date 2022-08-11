@@ -1,0 +1,81 @@
+version: '3'
+
+services:
+  traefik:
+    # The latest official supported Traefik docker image
+    container_name: traefik
+    image: traefik:latest
+    # Enables the Traefik Dashboard and tells Traefik to listen to docker
+    # enable --log.level=INFO so we can see what Traefik is doing in the log files
+    ports:
+      # Exposes port 80 for incomming web requests
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+      start_period: 5s
+    volumes:
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mounts the Traefik static configuration inside the Traefik container
+      - ./traefik.yml:/etc/traefik/traefik.yml
+      # Copies the Let's Encrypt certificate locally for ease of backing up
+      - ./letsencrypt:/letsencrypt
+    labels:
+      # dashboard
+      - "traefik.enable=true"
+      # Routers
+      - "traefik.http.routers.dashboard.rule=Host(`dashboard.localhost`) && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls=true"
+      - "traefik.http.routers.dashboard.tls.certresolver=myresolver"
+      - "traefik.http.routers.dashboard.middlewares=dashboard-auth"
+      # Service
+      - "traefik.http.services.dashboard.loadbalancer.server.port=8080"
+      # Middleware Basic Auth
+      - "traefik.http.middlewares.dashboard-auth.basicauth.users=traefik:$$apr1$$.zPbdVg8$$LcHeyCZElH.JfxkxxlMPI."
+
+
+# Add the nginx service
+  nginx:
+    #image: shashwot/nginx-more
+    image: shashwot/nginx-more
+    container_name: nginx
+     # We set a label to tell Traefik to assign a hostname to the new service
+    labels:
+      # Enable traefik
+      - "traefik.enable=true"
+      # Routers
+      # routers http
+      - "traefik.http.routers.nginx.service=nginx-secure"
+      - "traefik.http.routers.nginx.rule=Host(`nginx.localhost`)"
+      - "traefik.http.routers.nginx.entrypoints=web"
+      - "traefik.http.routers.nginx.middlewares=test-redirectscheme"
+      # routers https
+      - "traefik.http.routers.nginx-secure.service=nginx-secure"
+      - "traefik.http.routers.nginx-secure.rule=Host(`nginx.localhost`)"
+      - "traefik.http.routers.nginx-secure.entrypoints=websecure"
+      - "traefik.http.routers.nginx-secure.tls.certresolver=myresolver"
+      - "traefik.http.routers.nginx-secure.middlewares=test-auth,test-compress,test-ratelimit"
+      # Services
+      - "traefik.http.services.nginx-secure.loadbalancer.server.port=80"
+      - "traefik.http.services.nginx-secure.loadbalancer.healthcheck.path=/"
+      - "traefik.http.services.nginx-secure.loadbalancer.healthcheck.port=80"
+      # Middleware RedirectScheme http > https
+      - "traefik.http.middlewares.test-redirectscheme.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.test-redirectscheme.redirectscheme.permanent=true"
+      # Middleware Compress
+      - "traefik.http.middlewares.test-compress.compress=true"
+      # Middleware Rate Limit
+      - "traefik.http.middlewares.test-ratelimit.ratelimit.average=100"
+      - "traefik.http.middlewares.test-ratelimit.ratelimit.burst=50"
+      # Middleware BasicAuth
+      - "traefik.http.middlewares.test-auth.basicauth.users=traefik:$$apr1$$.zPbdVg8$$LcHeyCZElH.JfxkxxlMPI."
+      # user1: traefik password: training
+      # Create hash password -> echo $(htpasswd -nb user2 test123) | sed -e s/\\$/\\$\\$/g
+      
