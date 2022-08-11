@@ -4,7 +4,7 @@
 api:
   # Dashboard
   dashboard: true
-  insecure: true
+  insecure: false
 
 ################################################################
 # Enable Healthcheck
