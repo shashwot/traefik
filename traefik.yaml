@@ -17,6 +17,9 @@ ping: {}
 providers:
   docker:
     exposedByDefault: false
+  file:
+    filename: /etc/traefik/dynamic/traefik_dynamic.yaml
+    watch: true
 
 ################################################################
 # Access Logging
@@ -25,7 +28,7 @@ providers:
 accessLog: {}
 #Configuring Multiple Filters
 # accessLog:
-#   filters:    
+#   filters:
 #     statusCodes:
 #       - "404"
 #     retryAttempts: true
@@ -35,7 +38,7 @@ accessLog: {}
 # Traefik Logging -  DEBUG, PANIC, FATAL, ERROR, WARN, and INFO (DEFAULT is ERROR)
 ################################################################
 log:
-  level: DEBUG
+  level: INFO
 
 ################################################################
 # Entrypoint
@@ -43,27 +46,43 @@ log:
 entryPoints:
   web:
     address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
   websecure:
     address: ":443"
-
+    http:
+      middlewares:
+        - content-compress@file
+        - https-redirect@file
+        - secureHeaders@file
+        - corsHeaders@file
+################################################################
+# Manual SSL
+################################################################
+tls:
+  certificates:
+    - certFile: /etc/traefik/ssl/cert.pem
+      keyFile: /etc/traefik/ssl/key.pem
 ################################################################
 # Challenge HTTP
 ################################################################
-certificatesResolvers:
-  myresolver:
-    acme:
-      email: shashwot@gmail.com 
-      storage: /letsencrypt/acme.json
-      httpChallenge:
-        entryPoint: web
-
+# certificatesResolvers:
+#   myresolver:
+#     acme:
+#       email: shashwot@gmail.com
+#       storage: /letsencrypt/acme.json
+#       httpChallenge:
+#         entryPoint: web
 ################################################################
 # Challenge TLS
 ################################################################
 # certificatesResolvers:
 #   myresolver:
 #     acme:
-#       email: shashwot@gmail.com  
+#       email: shashwot@gmail.com
 #       storage: /letsencrypt/acme.json
 #       tlsChallenge: true
 #         # # used during the challenge

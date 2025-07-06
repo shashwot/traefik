@@ -1,0 +1,89 @@
+http:
+  middlewares:
+    oidc-token:
+      forwardAuth:
+        address: "http://127.0.0.1:9091/auth"
+        authResponseHeaders:
+          - Authorization
+
+    stripprefix:
+      replacePathRegex:
+        regex: "^/api(.*)"
+        replacement: "$${1}"
+
+    dashboard-auth:
+      basicAuth:
+        users:
+          - "traefik:$apr1$S0X.sV3t$4ALdDAYWUBSVuX4cmnmI/0"
+          # htpasswd -c $PWD/pwdfile traefik
+
+    content-compress:
+      compress: true
+
+    https-redirect:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+    secureHeaders:
+      headers:
+        frameDeny: true
+        sslRedirect: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        permissionsPolicy: >
+          sync-xhr=(), accelerometer=(), attribution-reporting=(self), autoplay=(), battery=(self), bluetooth=(), camera=(self), ch-device-memory=(), ch-downlink=(), ch-dpr=(), ch-ect=(), ch-rtt=(), ch-save-data=(), ch-ua-arch=(), ch-ua-bitness=(), ch-viewport-height=(), ch-viewport-width=(), ch-width=(), clipboard-read=(self), clipboard-write=(self), display-capture=(self), encrypted-media=(self), fullscreen=(self), gamepad=*, geolocation=(self), gyroscope=(), hid=(), idle-detection=(), keyboard-map=(), magnetometer=(), microphone=(self), midi=(), payment=(), picture-in-picture=(self), publickey-credentials-get=(self), screen-wake-lock=(), serial=(), usb=(), unload=(self), window-management=(), xr-spatial-tracking=(self), report-to='permissions_policy'
+        contentSecurityPolicy: >
+          default-src 'self';
+          script-src 'self' 'unsafe-inline' 'unsafe-eval';
+          style-src 'self' 'unsafe-inline';
+          img-src 'self' data:;
+          font-src 'self';
+          connect-src 'self';
+          frame-ancestors 'none';
+          form-action 'self';
+
+    corsHeaders:
+      headers:
+        accessControlAllowMethods:
+          - "GET"
+          - "POST"
+          - "OPTIONS"
+        accessControlAllowHeaders:
+          - "Authorization"
+          - "Content-Type"
+          - "X-Requested-With"
+        accessControlMaxAge: 600
+        addVaryHeader: true
+
+  routers:
+    dashboard:
+      rule: "Host(`traefik.localhost`) && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))"
+      entryPoints:
+        - web
+        - websecure
+      middlewares:
+        - dashboard-auth
+      service: api@internal
+      tls: {}
+
+    my_service:
+      rule: "Host(`nginx.localhost`) && PathPrefix(`/`)"
+      entrypoints:
+        - web
+        - websecure
+      # middlewares:
+      #   - stripprefix
+      service: my_service
+      tls: {}
+
+  services:
+    my_service:
+      loadBalancer:
+        servers:
+          - url: "http://nginx:80/"
